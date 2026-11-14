@@ -1,0 +1,50 @@
+# mission-kickoff profile — copy to ~/.config/mission-kickoff/config.sh and edit.
+#
+# install.sh seeds that path from this example when it does not exist yet.
+# This file holds NO credentials — only paths and command lines for one
+# workspace. It is git-ignored so a per-machine profile never gets committed.
+#
+# Override the location with:  MISSION_KICKOFF_CONFIG=/path/to/config.sh
+# Every variable is optional. An unset variable means "skip that source and say
+# so" — the skill must never invent a plausible path to fill the gap.
+
+# --- workspace -------------------------------------------------------------
+# Root the step-2 survey walks. Repos are grouped by their first path component.
+MK_WORKSPACE_ROOT="$HOME/Workspace/my-project"
+MK_PROJECT_NAME="my-project"
+
+# How deep scan-workspace.sh looks for .git (default 5).
+#MK_SCAN_DEPTH=5
+
+# --- step 1: docs of record ------------------------------------------------
+# Read in this order. Status claims in them are hypotheses until checked.
+MK_DOCS_OF_RECORD=(
+  "$MK_WORKSPACE_ROOT/docs/roadmap.md"             # priority/status truth
+  "$MK_WORKSPACE_ROOT/docs/workspace-overview.md"  # layout + conventions
+)
+# Canonical repo/layout map, if the overview is not enough.
+MK_REPO_MAP_DOC="$MK_WORKSPACE_ROOT/docs/repos.md"
+
+# --- step 2: optional live inventory ---------------------------------------
+# Command that surveys running hosts/containers. Leave unset to skip.
+# Such tools usually SSH out — keep concurrency low and never let them write.
+#MK_INVENTORY_CMD="cd $MK_WORKSPACE_ROOT/ops && ./bin/survey"
+
+# Stewardship/automation log to tail after the survey (unset = the default
+# $MK_WORKSPACE_ROOT/.qwen/tmp/hourly-repo-push.log; set empty to disable).
+#MK_SWEEP_LOG="$MK_WORKSPACE_ROOT/.qwen/tmp/hourly-repo-push.log"
+#MK_SWEEP_TAIL=15
+
+# --- step 3: goals ---------------------------------------------------------
+# Agent shared space, if you keep one outside the repos.
+MK_AGENT_SPACE="$HOME/Workspace/Agents/my-project"
+MK_GOALS_FILE="$MK_AGENT_SPACE/goals/long-term-goals.md"
+MK_TODOS_DIR="$MK_AGENT_SPACE/todos"
+
+# Milestone board. MK_TASK_BOARD_CMD must be a complete, runnable command.
+MK_TASK_BOARD_NAME="My Board"
+#MK_TASK_BOARD_CMD="bash $HOME/.agents/skills/deck/scripts/deck.sh cards 2"
+
+# --- step 4: dispatch ------------------------------------------------------
+MK_ORCA="orca-ide"        # worker CLI; on Linux never bare `orca`
+MK_AGENT="qwen-code"      # preferred worker agent (owner policy)
