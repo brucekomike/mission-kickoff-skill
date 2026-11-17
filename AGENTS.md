@@ -8,22 +8,29 @@ compatibility symlinks created by `install.sh`.
 
 ## What this skill is
 
-A **procedure**, not an API client. It ships one helper (`scan-workspace.sh`), one
-instruction file (`SKILL.md`) and one profile template (`config.sh.example`). It
-holds no credentials and has no network client of its own.
+A **procedure**, not an API client. It ships two helpers (`profile.sh` resolves the
+workspace profile, `scan-workspace.sh` surveys git state), one instruction file
+(`SKILL.md`) and one profile template (`config.sh.example`). It holds no
+credentials and has no network client of its own.
 
-## Workspace-specifics live in the profile, never here
+## Workspace-specifics live in the workspace, never here
 
 `SKILL.md` must stay generic: concrete paths, board ids, inventory commands and
-preferred agents are read from `$MISSION_KICKOFF_CONFIG`
-(default `~/.config/mission-kickoff/config.sh`, seeded from `config.sh.example`,
-git-ignored). **Do not add a real project's paths, repo names, board names or host
-layout back into `SKILL.md`, `README.md`, this file or the script** — that is the
-one rule that keeps the package portable and publishable. Use `<placeholder>` form
-in prose and a `MK_*` variable in code.
+preferred agents come from `<workspace-root>/.config/.mission-kickoff.sh`, which the
+shared skill-config loader finds by walking up from the current directory;
+`scripts/profile.sh` is only a wrapper around it. A workspace declares itself by
+containing that file; there is no registry to update and no selector to pass. **Do not add a real project's paths, repo names, board names or
+host layout back into `SKILL.md`, `README.md`, this file, `config.sh.example` or
+either script** — that is the one rule that keeps the package portable and
+publishable. Use `<placeholder>` form in prose and a `MK_*` variable in code.
+
+Because the profile lives at a workspace root, it can sit inside a git tree. It
+must never hold credentials, and `config.sh.example` says to gitignore
+`.config/` when the root is a repo. Do not weaken that into "just put the
+paths in SKILL.md so it works everywhere".
 
 An unset `MK_*` variable means "skip that source and say so". The skill must never
-invent a plausible path to fill a gap; with no profile at all it asks the user.
+invent a plausible path to fill a gap; with no profile at all it asks the owner.
 
 ## Runtime requirements
 
@@ -80,8 +87,10 @@ These are the reasons the gotcha section reads the way it does — keep them:
 
 ## install.sh notes
 
-- Installs to `~/.agents/skills/<name>`, links into `~/.claude/skills` and
-  `~/.qwen/skills`, and seeds the profile only when it does not already exist.
+- Installs to `~/.agents/skills/<name>` and links into `~/.claude/skills` and
+  `~/.qwen/skills`. It **creates no profile**: only the owner knows a workspace's
+  real doc and goal paths, so seeding one would fabricate config. It ends by
+  printing `profile.sh --list` and the two commands to add a workspace.
 - It runs `rm -rf "$root/$name"` **before** `ln -s`. This is deliberate: a hand-made
   install leaves a *real directory* at that path, and `ln -sfn` would nest the new
   link inside it (`.../mission-kickoff/mission-kickoff`) instead of replacing it.
@@ -89,25 +98,60 @@ These are the reasons the gotcha section reads the way it does — keep them:
 - The `rm -rf` targets are guarded with `${root:?}` so an unset variable cannot
   expand to a destructive path.
 
+## profile.sh notes
+
+- **It is a wrapper, not a resolver.** The walk-up, the resolution order and the
+  root derivation all live in the shared `~/.config/skill-config/loader.sh` (owned
+  by bk-skills). Do not reintroduce a second implementation here: two resolvers
+  drift, and a skill that resolves a different workspace than its siblings is worse
+  than one that fails. If the loader is absent, exit `3` with the install note.
+- mission-kickoff has **no sites** — its profile is scalar `MK_*` variables — so it
+  calls `skillconf_find MK` / `skillconf_rootof` / `skillconf_workspaces` and never
+  `skillconf_apply`. The loader has no slot table for `MK` on purpose.
+- The profile file and the declaration are the same object: finding
+  `.config/.mission-kickoff.sh` yields the profile *and* the root in one step.
+  Deriving the root from the path is what stops it drifting, so a workspace profile
+  must not hardcode `MK_WORKSPACE_ROOT` — it self-locates with `${BASH_SOURCE[0]}`,
+  and only the global fallback states a root.
+- Resolution is `env → workspace → global → none`. `--source` reports which rule
+  matched, because "it silently used the wrong profile" is the failure to be able
+  to see.
+- `--list` reports roots with **no** profile too. Hiding unconfigured workspaces
+  would make a missing profile look like a successful one.
+- Read-only: it never writes, creates, or executes a profile command.
+
 ## scan-workspace.sh notes
 
+- Sources whichever profile applies before surveying, so `MK_SWEEP_LOG`,
+  `MK_SWEEP_TAIL` and `MK_SCAN_DEPTH` work even when the root is given as an
+  argument.
 - Unborn-HEAD safe — checks `git rev-parse --verify -q HEAD` before treating a repo
   as having commits. (`git rev-parse HEAD` on an empty repo prints the literal
   string `HEAD` *and* exits non-zero, which corrupts `$(... || echo fallback)`
   measurements.)
 - Prints `no-upstream` and counts those repos separately, so "no tracking branch"
   is never reported as "in sync".
-- Expands a leading `~` in `MK_WORKSPACE_ROOT`, since a quoted variable does not
-  undergo tilde expansion.
+- Expands a leading `~` in the root, since a quoted variable does not undergo
+  tilde expansion.
+- When nothing resolves it exits 2 and says which directory it searched, rather
+  than surveying a guessed root.
 
 ## Validation
 
 ```bash
-bash -n install.sh .agents/skills/mission-kickoff/scripts/scan-workspace.sh
-bash .agents/skills/mission-kickoff/scripts/scan-workspace.sh <a real workspace root>
-bash install.sh   # then confirm SKILL.md resolves at all three roots
+bash -n install.sh .agents/skills/mission-kickoff/scripts/*.sh
+cd <workspace> && bash .../scripts/profile.sh --status     # expect source=workspace
+cd <workspace>/<some-repo> && bash .../scripts/scan-workspace.sh   # walks up to the marker
+cd /tmp && bash .../scripts/scan-workspace.sh              # expect exit 2, no guessing
+bash .../scripts/profile.sh --list                         # profiled + NO PROFILE rows
 grep -rniE '<your own project name>|<internal repo names>' . && echo LEAK || echo clean
 ```
+
+The leak grep matters more with per-workspace profiles: profiles now live outside
+this repo, so a real path appearing *here* means someone pasted one in rather than
+configured one. Check the resolution matrix after any change to `profile.sh` — a
+resolver bug silently picks the wrong project's board and goals, which is worse
+than an error.
 
 A `SKILL.md` change is only really validated by loading it in an agent client and
 running a kickoff. Failure modes worth watching: step 4 dispatching without

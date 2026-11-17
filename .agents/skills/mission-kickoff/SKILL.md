@@ -8,8 +8,9 @@ description: >-
   work", "what should we work on next", or begins a multi-step task and wants the
   current state and a task plan before doing anything.
 compatibility: >-
-  Workspace-agnostic. Concrete paths come from a local profile (see Step 0), not
-  from this file, so nothing here is tied to one project. Needs git and bash; the
+  Workspace-agnostic and multi-workspace: each workspace declares itself with a
+  .config/.mission-kickoff.sh at its root, resolved from the current directory, so
+  nothing here is tied to one project (see Step 0). Needs git and bash; the
   optional step-4 dispatch needs a worker CLI such as orca-ide, and the optional
   board lookup in step 3 needs a task-board client such as the deck skill.
   Read-only until the user approves task dispatch.
@@ -26,23 +27,50 @@ the current working directory.
 
 ## Step 0 — Load the workspace profile
 
-This skill is generic; the specifics live in a **local, git-ignored profile**:
+Each workspace declares itself with **`<workspace-root>/.config/.mission-kickoff.sh`**.
+One `.config/` directory per workspace holds one dot-file per skill, so nothing is
+duplicated across projects. The resolver finds it by walking up from the current
+directory, which yields the profile *and* the workspace root in one step — you
+select a workspace by **being in it**, not by naming one. Multiple workspaces
+coexist with no registry and no selector.
 
 ```bash
-CFG="${MISSION_KICKOFF_CONFIG:-$HOME/.config/mission-kickoff/config.sh}"
-[ -f "$CFG" ] && . "$CFG"
+bash <skill-dir>/scripts/profile.sh --status   # loader, which profile applies, its root
+bash <skill-dir>/scripts/profile.sh --list     # every workspace, profiled or not
 ```
 
-It may define: `MK_WORKSPACE_ROOT`, `MK_PROJECT_NAME`, `MK_DOCS_OF_RECORD` (array),
+That walk-up lives in the **shared loader** `~/.config/skill-config/loader.sh`
+(canonical copy in [bk-skills](https://github.com/brucekomike/bk-skills)), so every
+skill answers "which workspace am I in?" identically. If the loader is missing,
+`profile.sh` exits `3` and prints how to install a bundle — it does not guess.
+
+Resolution order, first hit wins: `$MISSION_KICKOFF_CONFIG` (explicit file) →
+nearest `.config/.mission-kickoff.sh` above `$PWD` → `~/.config/mission-kickoff/config.sh`
+(machine fallback, for running outside any workspace) → none.
+
+A profile may define: `MK_PROJECT_NAME`, `MK_DOCS_OF_RECORD` (array),
 `MK_REPO_MAP_DOC`, `MK_AGENT_SPACE`, `MK_GOALS_FILE`, `MK_TODOS_DIR`,
 `MK_TASK_BOARD_NAME`, `MK_TASK_BOARD_CMD`, `MK_INVENTORY_CMD`, `MK_SWEEP_LOG`,
-`MK_ORCA` (worker CLI, e.g. `orca-ide`), `MK_AGENT` (preferred worker agent).
+`MK_SWEEP_TAIL`, `MK_SCAN_DEPTH`, `MK_ORCA` (worker CLI, e.g. `orca-ide`),
+`MK_AGENT` (preferred worker agent). Never hardcode `MK_WORKSPACE_ROOT` in a
+workspace profile — start the file with the one self-locating line from
+`config.sh.example`, which derives it from the file's own location. Setting it by
+hand is only for the global fallback, where there is no marker to derive from.
+
+`MK_SCAN_DEPTH` must cover the **deepest** repo, not a round number: at `5` a
+workspace with `<root>/x/repos/<ns>/<repo>/.git` silently under-counts, and a
+survey that misses repos reports "0 unpushed" about work it never looked at.
 
 **If there is no profile, do not invent paths.** Ask the user for the workspace
 root and where goals/todos live, or infer them from the repo layout and say what
 you assumed. Every unset variable below means "skip that source and say so", never
 "guess a plausible path". `$MK_ORCA` is written as `ORCA` in step 4; on Linux that
 is `orca-ide`, never bare `orca` outside an Orca-managed terminal.
+
+A workspace root is normally **not** a git worktree, so `.config/` sits above every
+repo in the tree and is committed nowhere. Profiles are written mode `600` and may
+hold credentials — keep them out of any repository, and if a root *is* a repo, add
+`.config/` to its `.gitignore` rather than letting a token reach a remote.
 
 ## Step 1 — Check the documents
 
@@ -61,8 +89,9 @@ drift when repos move.
 Run the bundled read-only survey (categorized git state + latest stewardship sweep):
 
 ```bash
-bash <skill-dir>/scripts/scan-workspace.sh            # uses $MK_WORKSPACE_ROOT
+bash <skill-dir>/scripts/scan-workspace.sh            # workspace from cwd's profile
 bash <skill-dir>/scripts/scan-workspace.sh <root>     # or name a root explicitly
+bash <skill-dir>/scripts/scan-workspace.sh -l         # list profiled / profile-less roots
 ```
 
 Interpret it: which repos have local changes or unpushed commits, which branch each
