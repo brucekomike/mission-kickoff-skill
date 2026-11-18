@@ -36,9 +36,20 @@ case "$root" in "~"/*) root="$HOME/${root#\~/}" ;; "~") root="$HOME" ;; esac
 printf '=== Workspace: %s ===\n' "$root"
 [ -n "$CFG" ] && [ -f "$CFG" ] && printf '=== profile: %s ===\n' "$CFG"
 printf '%-10s %-34s %-26s %6s %8s\n' CATEGORY REPO BRANCH DIRTY UNPUSHED
-tot=0; dirtytot=0; unptot=0; noremote=0; counted=""
+tot=0; dirtytot=0; dirtyrepos=0; unptot=0; noremote=0; counted=""; skipped=0
 while IFS= read -r gitdir; do
   r=$(dirname "$gitdir"); rel=${r#"$root"/}
+  # MK_SCAN_EXCLUDE: whitespace-separated path patterns relative to the root
+  # ("tjaicc", "vendor third-party", or globs like "*/scratch"). Excluded repos
+  # are COUNTED and reported, never silently dropped — a survey that quietly hides
+  # repos turns "0 unpushed" into a claim about work it never looked at.
+  if [ -n "${MK_SCAN_EXCLUDE:-}" ]; then
+    skip=0
+    for pat in $MK_SCAN_EXCLUDE; do
+      case "$rel" in $pat|"$pat"/*) skip=1; break ;; esac
+    done
+    if [ "$skip" = 1 ]; then skipped=$((skipped+1)); continue; fi
+  fi
   counted="${counted}${r}
 "
   cat=${rel%%/*}; [ "$cat" = "$rel" ] && cat="(root)"
@@ -54,13 +65,21 @@ while IFS= read -r gitdir; do
     unp="no-upstream"; noremote=$((noremote+1))
   fi
   printf '%-10s %-34s %-26s %6s %8s\n' "$cat" "$name" "$branch" "$dirty" "$unp"
-  tot=$((tot+1)); dirtytot=$((dirtytot+dirty))
+  tot=$((tot+1))
+  # Two different quantities, and conflating them misreads the whole line: a repo
+  # with 20 changed files is one dirty repo, not twenty.
+  [ "$dirty" -gt 0 ] && dirtyrepos=$((dirtyrepos+1))
+  dirtytot=$((dirtytot+dirty))
   case "$unp" in ''|*[!0-9]*) ;; *) unptot=$((unptot+unp));; esac
 done < <(find "$root" -maxdepth "${MK_SCAN_DEPTH:-5}" -name .git \
            -not -path '*/node_modules/*' 2>/dev/null | sort)
 [ "$tot" -eq 0 ] && echo "   (no git repositories found under this root)"
-printf '=== %s repos | %s with local changes | %s unpushed commits | %s without upstream ===\n' \
-  "$tot" "$dirtytot" "$unptot" "$noremote"
+printf '=== %s repos | %s with local changes (%s files) | %s unpushed commits | %s without upstream ===\n' \
+  "$tot" "$dirtyrepos" "$dirtytot" "$unptot" "$noremote"
+if [ "$skipped" -gt 0 ]; then
+  printf '=== excluded by MK_SCAN_EXCLUDE=%s : %s repos NOT listed above (survey them from their own workspace root) ===\n' \
+    "\"${MK_SCAN_EXCLUDE}\"" "$skipped"
+fi
 
 # Repos reached through a symlink are invisible to `find -name .git`, so a repo
 # living in another tree can be silently missing from this root's totals. Report
@@ -73,7 +92,7 @@ while IFS= read -r l; do
   printf '%s' "$counted" | grep -qxF "$tgt" && continue
   linked="${linked:+$linked, }${l#"$root"/} -> ${tgt#"$HOME"/}"
 done < <(find "$root" -maxdepth "${MK_SCAN_DEPTH:-5}" -type l 2>/dev/null | sort)
-[ -n "$linked" ] && printf '=== symlinked repos outside this root, NOT counted above: %s ===\n' "$linked"
+[ -n "$linked" ] && printf '=== symlinked repos not counted above (outside this root, or excluded): %s ===\n' "$linked"
 
 # Optional: tail the last stewardship/automation sweep for this workspace.
 # `-` not `:-` so that an explicitly empty MK_SWEEP_LOG disables this section;

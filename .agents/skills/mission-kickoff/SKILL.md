@@ -51,7 +51,7 @@ nearest `.config/.mission-kickoff.sh` above `$PWD` → `~/.config/mission-kickof
 A profile may define: `MK_PROJECT_NAME`, `MK_DOCS_OF_RECORD` (array),
 `MK_REPO_MAP_DOC`, `MK_AGENT_SPACE`, `MK_GOALS_FILE`, `MK_TODOS_DIR`,
 `MK_TASK_BOARD_NAME`, `MK_TASK_BOARD_CMD`, `MK_INVENTORY_CMD`, `MK_SWEEP_LOG`,
-`MK_SWEEP_TAIL`, `MK_SCAN_DEPTH`, `MK_ORCA` (worker CLI, e.g. `orca-ide`),
+`MK_SWEEP_TAIL`, `MK_SCAN_DEPTH`, `MK_SCAN_EXCLUDE`, `MK_ORCA` (worker CLI, e.g. `orca-ide`),
 `MK_AGENT` (preferred worker agent), `MK_FORGE_PERSONAL_CMD`, `MK_FORGE_PRIVATE_CMD`
 (which CLI files a repo, per workspace — see step 4). Never hardcode `MK_WORKSPACE_ROOT` in a
 workspace profile — start the file with the one self-locating line from
@@ -100,6 +100,12 @@ is on, and what the last stewardship sweep did (`MK_SWEEP_LOG`, if set). Rows ar
 grouped by the first path component under the root, so the categories are whatever
 the workspace actually uses. `no-upstream` means "no tracking branch", which is not
 the same as "in sync" — treat those repos as unbacked-up.
+
+If the profile sets `MK_SCAN_EXCLUDE`, those subtrees are left out of the table but
+still **counted and named** on the summary line — a hub workspace skips a nested
+tree that owns its own profile, and reporting nothing at all would make "0 unpushed"
+read as full coverage. Say which roots were excluded, and survey them from their own
+workspace if the mission needs their state.
 
 Only if the mission needs **live fleet state**, run the inventory tool
 (`MK_INVENTORY_CMD`). Such a tool usually SSHes to hosts — keep concurrency low

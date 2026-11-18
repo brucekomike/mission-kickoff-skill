@@ -28,6 +28,11 @@ MK_PROJECT_NAME="my-project"
 # Cover the DEEPEST repo in the tree, not a round number: <root>/x/repos/<ns>/<repo>
 # needs 6, and a too-small value silently omits repos from the survey.
 MK_SCAN_DEPTH=5
+# Subtrees to leave out of the survey: whitespace-separated paths relative to the
+# root, globs allowed. Use it when a nested tree has its own workspace profile, so
+# the hub is not reporting the same repos twice. Excluded repos are still COUNTED
+# and named in the summary — never hidden.
+#MK_SCAN_EXCLUDE="nested-project vendor third-party"
 
 # --- step 1: docs of record ------------------------------------------------
 # Read in this order. Status claims inside them are hypotheses until verified.
