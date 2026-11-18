@@ -52,7 +52,8 @@ A profile may define: `MK_PROJECT_NAME`, `MK_DOCS_OF_RECORD` (array),
 `MK_REPO_MAP_DOC`, `MK_AGENT_SPACE`, `MK_GOALS_FILE`, `MK_TODOS_DIR`,
 `MK_TASK_BOARD_NAME`, `MK_TASK_BOARD_CMD`, `MK_INVENTORY_CMD`, `MK_SWEEP_LOG`,
 `MK_SWEEP_TAIL`, `MK_SCAN_DEPTH`, `MK_ORCA` (worker CLI, e.g. `orca-ide`),
-`MK_AGENT` (preferred worker agent). Never hardcode `MK_WORKSPACE_ROOT` in a
+`MK_AGENT` (preferred worker agent), `MK_FORGE_PERSONAL_CMD`, `MK_FORGE_PRIVATE_CMD`
+(which CLI files a repo, per workspace — see step 4). Never hardcode `MK_WORKSPACE_ROOT` in a
 workspace profile — start the file with the one self-locating line from
 `config.sh.example`, which derives it from the file's own location. Setting it by
 hand is only for the global fallback, where there is no marker to derive from.
@@ -206,6 +207,16 @@ settled task creates a duplicate report and misattributes the outcome. Look up
 worker list. `worktree create --prompt` is fire-and-forget — tracked nowhere,
 reports nothing — so use it only for true hand-offs where the user works in that
 chat.
+
+**Which forge and CLI.** When a task creates or files a repo, follow the profile's
+`MK_FORGE_PERSONAL_CMD` / `MK_FORGE_PRIVATE_CMD` rather than defaulting to whatever CLI
+is on `PATH` — typically personal projects go to one forge and testing or private
+repos to another. Per-host CLI shortcuts are often **shell functions** defined in
+`~/.bashrc`, which every agent tool shell cannot see; `type <fn>` returning nothing
+proves only it is not in the non-interactive environment, not that the alias is
+missing. Run the expansion the profile records (for example
+`GITLAB_HOST=<host> glab …`) instead of reporting the command unknown, and confirm the
+host with the tool's own status call rather than assuming.
 
 **Guardrails to embed in every worker brief:** no force-push; no secrets in output
 or commits; push only to the repo's configured real origin — verify

@@ -55,9 +55,22 @@ MK_GOALS_FILE="$MK_AGENT_SPACE/goals/long-term-goals.md"
 MK_TODOS_DIR="$MK_AGENT_SPACE/todos"
 
 # Milestone board. Must be a complete runnable command, not a fragment.
+# If the board CLI selects a server from a config default, pin it inline — other
+# servers can carry a board with the same id and similar cards, which reads as
+# plausible data rather than an error.
 MK_TASK_BOARD_NAME="My Board"
-#MK_TASK_BOARD_CMD="bash $HOME/.agents/skills/deck/scripts/deck.sh cards 2"
+#MK_TASK_BOARD_CMD="DECK_SITE=<site> bash $HOME/.agents/skills/deck/scripts/deck.sh cards <boardId>"
 
 # --- step 4: dispatch ------------------------------------------------------
 MK_ORCA="orca-ide"                 # worker CLI; on Linux never bare `orca`
 MK_AGENT="qwen-code"               # preferred worker agent (owner policy)
+
+# --- which forge and CLI file a new repo -----------------------------------
+# Optional. Set these if personal projects and testing/private work belong on
+# different forges, so a kickoff does not default to whatever is on $PATH.
+#
+# If a per-host shortcut is a ~/.bashrc FUNCTION, an agent's non-interactive
+# shell cannot see it — record the expansion, not the name, or the skill reports
+# a command that plainly exists as missing.
+MK_FORGE_PERSONAL_CMD='gh'                                  # e.g. github.com/<user>
+MK_FORGE_PRIVATE_CMD='GITLAB_HOST=gitlab.example.org glab'  # what your alias expands to
