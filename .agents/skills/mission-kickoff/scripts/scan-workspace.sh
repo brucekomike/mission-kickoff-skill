@@ -40,7 +40,7 @@ tot=0; dirtytot=0; dirtyrepos=0; unptot=0; noremote=0; counted=""; skipped=0
 while IFS= read -r gitdir; do
   r=$(dirname "$gitdir"); rel=${r#"$root"/}
   # MK_SCAN_EXCLUDE: whitespace-separated path patterns relative to the root
-  # ("tjaicc", "vendor third-party", or globs like "*/scratch"). Excluded repos
+  # ("nested-project vendor", or globs like "*/scratch"). Excluded repos
   # are COUNTED and reported, never silently dropped — a survey that quietly hides
   # repos turns "0 unpushed" into a claim about work it never looked at.
   if [ -n "${MK_SCAN_EXCLUDE:-}" ]; then
